@@ -47,6 +47,25 @@
           </div>
 
           <div class="col-span-4 md:col-span-2 p-4 text-left w-full space-y-2">
+            <div>
+              <div class="p-3 rounded-xl gap-4 bg-base-100 flex items-center">
+                <label for="servo_value" class="font-bold">Servo value</label>
+                <div class="w-full">
+                  <input @keyup="changeData()" id="servo_value" v-model="servoValue.degree" class="input input-bordered w-full">
+                </div>
+                <button @click="toggleRun()" class="btn text-white" :class="{'btn-error': servoValue.active == false, 'btn-primary': servoValue.active == true}">
+                  {{ !servoValue.active ? 'Stop' : 'Run' }}
+                </button>
+              </div>
+              <div class="grid grid-cols-2 p-4 rounded-xl bg-base-100 mt-2">
+                <div v-for="(item, index) in 4" :key="index" class=" justify-between">
+                  <div class="flex items-center gap-3">
+                    Relay {{ item }}
+                    <input @change="changeRelay(index)" type="checkbox" class="toggle toggle-primary" />
+                  </div>
+                </div>
+              </div>
+            </div>
             <div v-if="waves.length > 0">
               <card-view-vue header="Chart Plotting">
                 <div v-if="selectedWave == -1">
@@ -76,64 +95,110 @@ import CardViewVue from '@/components/CardView.vue';
 import { IonContent, IonPage } from '@ionic/vue';
 import { ref, Ref, onMounted } from 'vue';
 import { database, ref as firebaseRef, get } from '@/firebaseConfig';
-import { remove, child } from 'firebase/database';
+import { remove, child, onValue, set } from 'firebase/database';
 import WavesChartVue from '@/components/WavesChart.vue';
 import * as XLSX from 'xlsx'
 
 const selectedWave: Ref<any> = ref(-1);
 const tableData: Ref<any> = ref([])
+const relayValue: Ref<any> = ref({
+  0: false,
+  1: false,
+  2: false,
+  3: false
+});
+const servoValue: Ref<any> = ref({});
 
 onMounted(() => {
   fetchDataFromFirebase();
   document.documentElement.setAttribute('data-theme', 'light')
 });
 
-
 async function fetchDataFromFirebase() {
   try {
-    const snapshot = await get(firebaseRef(database, 'love_bird/data'));
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      tableData.value = Object.entries(data).map(([key, value]: any) => ({
-        key,
-        loadcell: value.load_cell,
-        timestamp: value.timestamp,
-        water_level: value.water_level
-      }));
+    const relayRef = firebaseRef(database, 'love_bird/relay');
+    onValue(relayRef, (snapshot: any) => {
+      if (snapshot.exists()) {
+        relayValue.value = snapshot.val();
+        console.log(relayValue.value);
+      } else {
+        console.log("No relay value available");
+      }
+    }, (error: any) => {
+      console.error("Error fetching relay value from Firebase:", error);
+    });
 
-      const loadCells = [];
-      const waterLevels = [];
+    const servoRef = firebaseRef(database, 'love_bird/servo');
+    onValue(servoRef, (snapshot: any) => {
+      if (snapshot.exists()) {
+        servoValue.value = snapshot.val();
+      } else {
+        console.log("No servo value available");
+      }
+    }, (error: any) => {
+      console.error("Error fetching servo value from Firebase:", error);
+    });
 
-      for (const key in data) {
-        const entry = data[key];
-        const [datePart, timePart] = entry.timestamp.split(" ");
-        const [day, month, year] = datePart.split("/");
-        const formattedDate = `${year}-${month}-${day}T${timePart}:00`;
+    const dataRef = firebaseRef(database, 'love_bird/data');
+    onValue(dataRef, (snapshot: any) => {
 
-        const date = new Date(formattedDate);
-        if (!isNaN(date.getTime())) {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        tableData.value = Object.entries(data).map(([key, value]: any) => ({
+          key,
+          loadcell: value.load_cell,
+          timestamp: value.timestamp,
+          water_level: value.water_level
+        }));
+
+        const loadCells = [];
+        const waterLevels = [];
+
+        for (const key in data) {
+          const entry = data[key];
+          const [datePart, timePart] = entry.timestamp.split(" ");
+          const [day, month, year] = datePart.split("/");
+          const formattedDate = `${year}-${month}-${day}T${timePart}:00`;
+
+          const date = new Date(formattedDate);
+          if (!isNaN(date.getTime())) {
             loadCells.push({
-                value: entry.load_cell,
-                date: formattedDate
+              value: entry.load_cell,
+              date: formattedDate
             });
 
             waterLevels.push({
-                value: entry.water_level,
-                date: formattedDate
+              value: entry.water_level,
+              date: formattedDate
             });
-        } else {
+          } else {
             console.error("Invalid date:", entry.timestamp);
+          }
         }
-      }
 
-      waves.value[0].data = loadCells;
-      waves.value[1].data = waterLevels;
-    } else {
-      console.log("No data available");
-    }
+        waves.value[0].data = loadCells;
+        waves.value[1].data = waterLevels;
+      } else {
+        console.log("No data available");
+      }
+    }, (error: any) => {
+      console.error("Error fetching data from Firebase:", error);
+    });
   } catch (error) {
-    console.error("Error fetching data from Firebase:", error);
+    console.error("Error initializing Firebase listener:", error);
   }
+}
+
+function toggleRun() {
+  servoValue.value.active = !servoValue.value.active;
+  set(firebaseRef(database, 'love_bird/servo'), servoValue.value);
+}
+
+function changeData() {
+  set(firebaseRef(database, 'love_bird/servo'), {
+    degree: parseInt(servoValue.value.degree),
+    active: servoValue.value.active
+  });
 }
 
 const waves = ref([
@@ -160,6 +225,11 @@ async function deleteAll() {
   } catch (error) {
     console.error("Error deleting all entries:", error);
   }
+}
+
+function changeRelay(index: number) {
+  set(firebaseRef(database, `love_bird/relay/${index}`), !relayValue.value[index]);
+  set(firebaseRef(database, `love_bird/relay/"${index}"`), !relayValue.value[index]);
 }
 
 function exportToExcel() {
