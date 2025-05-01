@@ -11,15 +11,34 @@
             <button class="btn btn-base-300" @click="$router.push({name: 'Scheduling'})">Scheduling</button>
           </div>
         </div>
-        <div class="grid grid-cols-4 min-h-[88vh] items-center justify-items-center">
+        <div class="max-w-2xl mx-auto min-h-[88vh] items-center justify-center justify-items-center">
           <div class="col-span-4 md:col-span-2 p-4 text-left w-full space-y-2">
             <img src="/public/banner.png" class="w-full shadow-xl rounded-3xl" alt="">
+            <div>
+              <div class="p-3 rounded-xl gap-4 bg-base-100 flex items-center">
+                <label for="servo_value" class="font-bold">Servo value</label>
+                <div class="w-full">
+                  <input @keyup="changeData()" id="servo_value" v-model="servoValue.degree" class="input input-bordered w-full">
+                </div>
+                <button @click="toggleRun()" class="btn text-white" :class="{'btn-error': servoValue.active == false, 'btn-primary': servoValue.active == true}">
+                  {{ !servoValue.active ? 'Stop' : 'Run' }}
+                </button>
+              </div>
+              <div class="grid grid-cols-2 p-4 rounded-xl bg-base-100 mt-2">
+                <div v-for="(item, index) in 4" :key="index" class=" justify-between">
+                  <div class="flex items-center gap-3">
+                    Relay {{ item }}
+                    <input @change="changeRelay(index)" type="checkbox" class="toggle toggle-primary" />
+                  </div>
+                </div>
+              </div>
+            </div>
             <card-view-vue header="Data Table">
               <div class="flex items-center gap-3 mb-6">
                 <button class="btn btn-primary" @click="exportToExcel()">Export Excel</button>
                 <button class="btn btn-error" @click="deleteAll()">Delete All</button>
               </div>
-              <div class="w-full max-h-[60vh] h-[20vh] overflow-auto">
+              <div class="w-full max-h-[60vh] h-[30vh] overflow-auto">
                 <table class="table table-sm">
                   <thead>
                     <tr>
@@ -46,28 +65,9 @@
             </card-view-vue>
           </div>
 
-          <div class="col-span-4 md:col-span-2 p-4 text-left w-full space-y-2">
-            <div>
-              <div class="p-3 rounded-xl gap-4 bg-base-100 flex items-center">
-                <label for="servo_value" class="font-bold">Servo value</label>
-                <div class="w-full">
-                  <input @keyup="changeData()" id="servo_value" v-model="servoValue.degree" class="input input-bordered w-full">
-                </div>
-                <button @click="toggleRun()" class="btn text-white" :class="{'btn-error': servoValue.active == false, 'btn-primary': servoValue.active == true}">
-                  {{ !servoValue.active ? 'Stop' : 'Run' }}
-                </button>
-              </div>
-              <div class="grid grid-cols-2 p-4 rounded-xl bg-base-100 mt-2">
-                <div v-for="(item, index) in 4" :key="index" class=" justify-between">
-                  <div class="flex items-center gap-3">
-                    Relay {{ item }}
-                    <input @change="changeRelay(index)" type="checkbox" class="toggle toggle-primary" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-if="waves.length > 0">
-              <card-view-vue header="Chart Plotting">
+          <!-- <div class="col-span-4 md:col-span-2 p-4 text-left w-full space-y-2"> -->
+            <!-- <div v-if="waves.length > 0"> -->
+              <!-- <card-view-vue header="Chart Plotting">
                 <div v-if="selectedWave == -1">
                   <waves-chart-vue 
                     :wave-data="waves.map(wave => wave.data)" 
@@ -80,9 +80,9 @@
                     :wave-names="[waves[selectedWave].name]" 
                   />
                 </div>
-              </card-view-vue>
-            </div>
-          </div>
+              </card-view-vue> -->
+            <!-- </div> -->
+          <!-- </div> -->
 
         </div>
       </div>
@@ -192,6 +192,10 @@ async function fetchDataFromFirebase() {
 function toggleRun() {
   servoValue.value.active = !servoValue.value.active;
   set(firebaseRef(database, 'love_bird/servo'), servoValue.value);
+  setTimeout(() => {
+    set(firebaseRef(database, 'love_bird/servo'), false);
+    servoValue.value.active = false;
+  }, 1000)
 }
 
 function changeData() {
