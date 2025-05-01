@@ -22,19 +22,23 @@
                                     <button type="button" :class="{'bg-primary text-white': selectedDays.includes(index)}"  @click="selectingDay(index)" v-for="(item, index) in days" :key="index" class="btn border-primary">{{ item }}</button>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 gap-3">
+                            <div class="grid grid-cols-1 gap-3">
                                 <div class="form-control">
                                     <label for="time" class="capitalize">time</label>
                                     <input id="time" type="time" class="input input-bordered w-full" v-model="time">
                                 </div>
-                                <div class="form-control">
-                                    <label for="duration" class="capitalize">duration (minutes)</label>
-                                    <input id="duration" type="number" class="input input-bordered w-full" v-model="duration">
-                                </div>
                             </div>
-                            <div class="form-control">
-                                <label for="actuator" class="capitalize">actuator (rpm)</label>
-                                <input id="actuator" type="number" class="input input-bordered w-full" v-model="actuator">
+                            <div class="flex py-1 justify-between items-center">
+                                <label for="">Pompa air 1</label>
+                                <button type="button" class="btn" @click="pump1 = !pump1" :class="{'btn-primary': pump1}">{{ pump1 ? 'ON' : 'OFF' }}</button>
+                            </div>
+                            <div class="flex py-1 justify-between items-center">
+                                <label for="">Pompa air 1</label>
+                                <button type="button" class="btn" @click="pump2 = !pump2" :class="{'btn-primary': pump2}">{{ pump2 ? 'ON' : 'OFF' }}</button>
+                            </div>
+                            <div class="flex py-1 justify-between items-center">
+                                <label for="">Servo</label>
+                                <button type="button" class="btn" @click="changeServo()" :class="{'btn-primary': servo == 100}">{{ servo == 100 ? 'ON' : 'OFF' }}</button>
                             </div>
                             <div class="flex items-center justify-end w-full gap-3">
                                 <label for="form_modal" class="btn btn-base-300">Cancel</label>
@@ -56,12 +60,12 @@
                                     </span>
                                 </div>
                                 <p>Time: {{ item.time }}</p>
-                                <p>Duration: {{ item.duration }} minutes</p>
-                                <p>Actuator: {{ item.actuator }} Rpm</p>
+                                <p v-if="item.pump1">Pump 1 Active</p>
+                                <p v-if="item.pump2">Pump 2 Active</p>
+                                <p v-if="item.servo == 100">Servo Active</p>
                                 <div class="grid-cols-2 grid gap-3 mt-3">
                                     <button @click="editData(item)" class="btn btn-primary btn-sm">Edit</button>
                                     <button @click="deleteByKey(item.key)" class="btn btn-error btn-sm">Delete</button>
-
                                 </div>
                             </div>
                         </div>
@@ -85,12 +89,13 @@ onMounted(() => {
 });
 
 const scheduleData: Ref<any> = ref([])
-const actuator: Ref<number> = ref(120)
-const duration: Ref<number> = ref(1)
 const time: Ref<string> = ref('');
 const days: Ref<any> = ref(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])
 const daysList = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const currentKey: Ref<string | null> = ref(null);
+const pump1: Ref<any> = ref(false)
+const pump2: Ref<any> = ref(false)
+const servo: Ref<any> = ref(100)
 
 const selectedDays: Ref<any> = ref([])
 
@@ -98,6 +103,11 @@ function getDayNamesArray(days: string) {
     return days
         .split(',')
         .map(day => daysList[parseInt(day, 10)]); // Convert each number to day name
+}
+
+const changeServo = () => {
+    if (servo.value == 100) servo.value = 180
+    else servo.value = 100
 }
 
 function selectingDay(idx: number) {
@@ -117,9 +127,10 @@ async function fetchDataFromFirebase() {
             const data = snapshot.val();
             scheduleData.value = Object.entries(data).map(([key, value]: any) => ({
                 key,
-                actuator: value.actuator,
                 days: value.days,
-                duration: value.duration,
+                pump1: value.pump1,
+                pump2: value.pump2,
+                servo: value.servo,
                 time: value.time,
             }));
             console.log(scheduleData.value)
@@ -133,8 +144,9 @@ async function fetchDataFromFirebase() {
 
 function editData(item: any) {
     currentKey.value = item.key;
-    actuator.value = item.actuator;
-    duration.value = item.duration;
+    pump1.value = item.pump1;
+    pump2.value = item.pump2;
+    servo.value = item.servo;
     time.value = item.time;
     selectedDays.value = item.days.split(',').map(Number);
     (document.getElementById('form_modal') as HTMLInputElement).checked = true;
@@ -144,9 +156,10 @@ async function createData() {
     try {
         const daysString = selectedDays.value.join(','); // Convert selectedDays to a string format
         const newData = {
-            actuator: actuator.value,
+            pump1: pump1.value,
+            pump2: pump2.value,
+            servo: servo.value,
             days: daysString,
-            duration: duration.value,
             time: time.value
         };
 
@@ -160,8 +173,9 @@ async function createData() {
         
         await fetchDataFromFirebase();
 
-        actuator.value = 120;
-        duration.value = 1;
+        pump1.value = false;
+        pump2.value = false;
+        servo.value = 100;
         time.value = '';
         selectedDays.value = [];
     } catch (error) {

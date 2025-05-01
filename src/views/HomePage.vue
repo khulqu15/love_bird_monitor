@@ -16,13 +16,14 @@
             <img src="/public/banner.png" class="w-full shadow-xl rounded-3xl" alt="">
             <div>
               <div class="p-3 rounded-xl gap-4 bg-base-100 flex items-center">
-                <label for="servo_value" class="font-bold">Servo value</label>
+                <label for="servo_value" class="font-bold">Servo Toggle</label>
                 <div class="w-full">
-                  <input @keyup="changeData()" id="servo_value" v-model="servoValue.degree" class="input input-bordered w-full">
+                  <span class="badge badge-primary">
+                    {{ servoValue }}
+                  </span>
                 </div>
-                <button @click="toggleRun()" class="btn text-white" :class="{'btn-error': servoValue.active == false, 'btn-primary': servoValue.active == true}">
-                  {{ !servoValue.active ? 'Stop' : 'Run' }}
-                </button>
+                <button @click="changeData(0)" class="btn text-white btn-error">Stop</button>
+                <button @click="changeData(50)" class="btn text-white btn-primary">Run</button>
               </div>
               <div class="grid grid-cols-2 p-4 rounded-xl bg-base-100 mt-2">
                 <div v-for="(item, index) in 4" :key="index" class=" justify-between">
@@ -156,24 +157,16 @@ async function fetchDataFromFirebase() {
 
         for (const key in data) {
           const entry = data[key];
-          const [datePart, timePart] = entry.timestamp.split(" ");
-          const [day, month, year] = datePart.split("/");
-          const formattedDate = `${year}-${month}-${day}T${timePart}:00`;
 
-          const date = new Date(formattedDate);
-          if (!isNaN(date.getTime())) {
             loadCells.push({
               value: entry.load_cell,
-              date: formattedDate
+              date: entry.timestamp
             });
 
             waterLevels.push({
               value: entry.water_level,
-              date: formattedDate
+              date: entry.timestamp
             });
-          } else {
-            console.error("Invalid date:", entry.timestamp);
-          }
         }
 
         waves.value[0].data = loadCells;
@@ -192,17 +185,11 @@ async function fetchDataFromFirebase() {
 function toggleRun() {
   servoValue.value.active = !servoValue.value.active;
   set(firebaseRef(database, 'love_bird/servo'), servoValue.value);
-  setTimeout(() => {
-    set(firebaseRef(database, 'love_bird/servo'), false);
-    servoValue.value.active = false;
-  }, 1000)
 }
 
-function changeData() {
-  set(firebaseRef(database, 'love_bird/servo'), {
-    degree: parseInt(servoValue.value.degree),
-    active: servoValue.value.active
-  });
+function changeData(value: number) {
+  set(firebaseRef(database, 'love_bird/servo'), value);
+  servoValue.value = value
 }
 
 const waves = ref([
